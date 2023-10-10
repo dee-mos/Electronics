@@ -256,7 +256,7 @@ void task_led()
 {
   static int led = 0;
   digitalWrite(LED_BUILTIN, led);
-  led = 1 - led;
+  // led = 1 - led;
 }
 
 void display_brightness()
