@@ -7,12 +7,12 @@ import shutil
 
 
 def process_firmware(source, target, env):
-    print("copy FIRMWARE to /firmware folder.")
+    print("copy FIRMWARE to /bin folder.")
     program_path = target[0].get_abspath()
     print("FIRMWARE path", program_path)
     # Use case: sign a firmware, do any manipulations with ELF, etc
     # env.Execute(f"sign --elf {program_path}")
-    shutil.copy2(program_path, "firmware") 
+    shutil.copy2(program_path, "bin") 
 
 
 

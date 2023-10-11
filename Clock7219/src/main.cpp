@@ -11,7 +11,7 @@
 
 #include "constants.h"
 
-#define DEVICE_VERSION "dee-mos/Electronics/Clock7219@1.06"
+#define DEVICE_VERSION "dee-mos/Electronics/Clock7219@1.07"
 
 #define AP_SSID "Rakabas"
 #define AP_PASS "abcdef2908"
