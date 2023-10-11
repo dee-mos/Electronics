@@ -254,7 +254,7 @@ void task_ntp()
 
 void task_led()
 {
-  static int led = 0;
+  static int led = 1;
   digitalWrite(LED_BUILTIN, led);
   // led = 1 - led;
 }
@@ -276,7 +276,7 @@ void display_brightness()
 void wifi_connected() 
 {
   WiFi.mode(WIFI_STA);
-  byte tries = 30;
+  byte tries = 10;
 
   //strcpy(w.ssid, AP_SSID);
   //strcpy(w.pass, AP_PASS);
