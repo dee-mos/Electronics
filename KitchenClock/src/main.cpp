@@ -44,17 +44,6 @@ GyverNTP ntp(eeprom_clock.gmt);
 #define DEF_NTP_TZ      3
 #define DEF_NTP_INTERVAL  (3600 * 4)
 
-
-#define MAX_TEXT 20
-#define DYN_MAX 5
-
-bool sws[DYN_MAX];
-int16_t slds[DYN_MAX];
-char inputs[DYN_MAX][20];
-uint8_t spin_am = 2;
-uint8_t tab = 0;
-
-
 const uint8_t charMap4[] = {
     0x3e, 0x41, 0x41, 0x3e,
     0x00, 0x42, 0x7f, 0x40,
@@ -67,7 +56,6 @@ const uint8_t charMap4[] = {
     0x36, 0x49, 0x49, 0x36,
     0x26, 0x49, 0x49, 0x3e
   };
-
 
 void draw_digit(uint8_t x, uint8_t dig)
 {
@@ -155,8 +143,8 @@ void build_mqtt(gh::Builder& b)
 
 void update_clock_labels()
 {
-  hub.update(F("ntp_time")).valueStr(ntp.timeString());
-  hub.update(F("ntp_date")).valueStr(ntp.dateString());
+  //hub.update(F("ntp_time")).valueStr(ntp.timeString());
+  //hub.update(F("ntp_date")).valueStr(ntp.dateString());
 }
 
 void build_clock(gh::Builder& b)
@@ -171,19 +159,66 @@ void build_clock(gh::Builder& b)
   {
     ntp.updateNow();
     update_clock_labels();
+    hub.update(F("ntp_date")).valueStr("new");
+    //b.refresh();
   }
 
-  b.Input(eeprom_clock.host).label(F("Сервер NTP")).maxLen(sizeof(eeprom_clock.host)-1).attach(&flag);
-  b.Input(&eeprom_clock.gmt).label(F("GMT зона")).attach(&flag);
-  if(flag)
+  if (b.beginRow()) 
   {
-    clock_.update();
+      flag |= b.Input(eeprom_clock.host).label(F("Сервер NTP")).maxLen(sizeof(eeprom_clock.host)-1).size(3).click();
+      flag |= b.Input(&eeprom_clock.gmt).label(F("GMT зона")).size(1).click();
+      if(flag)
+      {
+        
+        clock_.update();
+        ntp.updateNow();
+        //b.refresh();
+      }
+      b.endRow();
   }
 }
 
+
+#define MAX_TEXT 20
+#define DYN_MAX 6
+bool sws[DYN_MAX];
+int16_t slds[DYN_MAX];
+String inputs[DYN_MAX];
+uint8_t spin_am = 2;
+uint8_t tab = 0;
+
+
 void build_colors(gh::Builder& b)
 {
-  
+    if (b.beginRow()) {
+        bool ref = 0;
+
+        // делаем вкладки, перезагрузка по клику
+        ref |= b.Tabs(&tab).text(F("Sliders;Switches;Inputs")).size(4).click();
+
+        // спиннер с количеством, перезагрузка по клику
+        //ref |= b.Spinner(&spin_am).label(F("Amount")).range(0, DYN_MAX, 1).click();
+
+        // перезагрузим
+        if (ref) b.refresh();
+        b.endRow();
+    }
+
+    for (int i = 0; i < spin_am; i++) {
+        b.beginRow();
+        switch (tab) {
+            case 0:
+                b.Slider(&slds[i]).label(String("Slider #") + i);
+                break;
+            case 1:
+                b.Switch(&sws[i]).label(String("Switch #") + i);
+                break;
+            case 2:
+                b.Input(&inputs[i]).label(String("Input #") + i);
+                break;
+        }
+        b.endRow();
+    }
 }
 
 void build(gh::Builder& b) 
