@@ -127,10 +127,11 @@ void wifi_connected()
 
 void build_wifi(gh::Builder& b)
 {
+  bool flag = 0;
   b.Title(F("Настройки WiFi"));
-  b.Input(eeprom_wifi.ssid).label("Network SSID").maxLen(sizeof(eeprom_wifi.ssid)-1);
-  b.Pass(eeprom_wifi.pass).label("Password").maxLen(sizeof(eeprom_wifi.pass)-1);
-  if(b.Button().label("Save").size(1).click())
+  b.Input(eeprom_wifi.ssid).label("Network SSID").maxLen(sizeof(eeprom_wifi.ssid)-1).attach(&flag);
+  b.Pass(eeprom_wifi.pass).label("Password").maxLen(sizeof(eeprom_wifi.pass)-1).attach(&flag);
+  if(flag)
   {
     wifi_.update();
     wifi_connected();
@@ -139,32 +140,42 @@ void build_wifi(gh::Builder& b)
 
 void build_mqtt(gh::Builder& b)
 {
+  bool flag = 0;  
   b.Title(F("Настройки MQTT"));
-  b.Input(eeprom_mqtt.host).label("Host").maxLen(sizeof(eeprom_mqtt.host)-1);
-  b.Input(&eeprom_mqtt.port).label("Port");
-  b.Input(eeprom_mqtt.login).label("User").maxLen(sizeof(eeprom_mqtt.login)-1);
-  b.Pass(eeprom_mqtt.password).label("Password").maxLen(sizeof(eeprom_mqtt.password)-1);
-  if(b.Button().label("Save").size(1).click())
+  b.Input(eeprom_mqtt.host).label("Host").maxLen(sizeof(eeprom_mqtt.host)-1).attach(&flag);
+  b.Input(&eeprom_mqtt.port).label("Port").attach(&flag);
+  b.Input(eeprom_mqtt.login).label("User").maxLen(sizeof(eeprom_mqtt.login)-1).attach(&flag);
+  b.Pass(eeprom_mqtt.password).label("Password").maxLen(sizeof(eeprom_mqtt.password)-1).attach(&flag);
+  if(flag)
   {
     mqtt_.update();
     hub.mqtt.config(eeprom_mqtt.host, eeprom_mqtt.port);
   }
 }
 
+void update_clock_labels()
+{
+  hub.update(F("ntp_time")).valueStr(ntp.timeString());
+  hub.update(F("ntp_date")).valueStr(ntp.dateString());
+}
+
 void build_clock(gh::Builder& b)
 {
-  b.Title(F("Настройки времени"));
-  b.Label(String(ntp.timeString()));
-  b.Label(String(ntp.dateString()));
+  bool flag = 0;
+  b.Title(F("Часы"));
+  b.Label_(F("ntp_time")).valueStr("-").label("Время");
+  b.Label_(F("ntp_date")).valueStr("-").label("Дата");;
+  //update_clock_labels();
 
   if(b.Icon_(F("")).click())
   {
     ntp.updateNow();
+    update_clock_labels();
   }
 
-  b.Input(eeprom_clock.host).label(F("Сервер NTP")).maxLen(sizeof(eeprom_clock.host)-1);
-  b.Input(&eeprom_clock.gmt).label(F("GMT зона"));
-  if(b.Button().label("Save").size(1).click())
+  b.Input(eeprom_clock.host).label(F("Сервер NTP")).maxLen(sizeof(eeprom_clock.host)-1).attach(&flag);
+  b.Input(&eeprom_clock.gmt).label(F("GMT зона")).attach(&flag);
+  if(flag)
   {
     clock_.update();
   }
@@ -239,6 +250,8 @@ void task_clock()
 
   if(upd)
   {
+    //update_clock_labels();
+
     display.begin();
     display.setBright(slds[0]);
     display.clear();
@@ -277,7 +290,6 @@ void task_led()
 void setup() 
 {
   hub.setVersion(DEVICE_VERSION);
-  hub.config(  )
 
   Serial.begin(115200);
 
