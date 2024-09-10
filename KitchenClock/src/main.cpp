@@ -12,7 +12,7 @@
 #define GITHUB_AUTHOR  "dee-mos" 
 #define DEVICE_GROUP   "DimusDevices"
 #define DEVICE_NAME    "KitchenClock"
-#define DEVICE_VERSION GITHUB_AUTHOR "/Electronics/" DEVICE_NAME "@1.00"
+#define DEVICE_VERSION GITHUB_AUTHOR "/Electronics/" DEVICE_NAME "@1.01"
 
 #define AP_SSID "Rakabas"
 #define AP_PASS "abcdef2908"
