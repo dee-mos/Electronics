@@ -7,6 +7,8 @@
 #include <GyverMAX7219.h>
 #include <EncButton.h>
 
+#include "clock_fonts.h"
+
 #include "constants.h"
 
 #define GITHUB_AUTHOR  "dee-mos" 
@@ -20,10 +22,17 @@
 #define ssidAP DEVICE_NAME
 #define passAP "12345678"  // не менее 8 символов
 
+//#define USE_BUTTONS 
+#undef USE_BUTTONS 
+#ifdef USE_BUTTONS
 #define BTN_FIRST  D7
 #define BTN_SECOND D8
 EncButton  button_1(BTN_FIRST);
 EncButton  button_2(BTN_SECOND);
+#endif
+
+//#define DEBUG_DIGIT(d) { display.begin(); display.setBright(brightness); display.clear(); draw_digit(0, d); display.update(); }
+#define DEBUG_DIGIT(d)
 
 // отключаем встроенную реализацию MQTT (для esp)
 #define GH_NO_MQTT
@@ -39,7 +48,11 @@ GyverOS<3> OS;	// указать макс. количество задач
 
 GyverHub hub(DEVICE_GROUP, DEVICE_NAME);  // префикс, имя, иконка
 
-MAX7219<4, 1, D1, D2, D0> display; // подключение к любым пинам (софт SPI)
+// pins: CS, DAT, CLK
+//MAX7219<4, 1, D1, D2, D0> display; // подключение к любым пинам (софт SPI)
+MAX7219<4, 1, D5, D6, D7> display; // подключение к любым пинам (софт SPI)
+
+
 // W и H - количество МАТРИЦ по горизонтали и вертикали
 // CS, DATA, CLK - номера пинов
 uint8_t brightness = 0; // 0..3
@@ -57,64 +70,7 @@ GyverNTP ntp(eeprom_clock.gmt);
 #define DEF_NTP_TZ      3
 #define DEF_NTP_INTERVAL  (3600 * 4)
 
-struct TMonoDigitalFont
-{
-public:
-    TMonoDigitalFont(uint8_t width, uint8_t height, uint8_t* fontptr): _width{width}, _height{height}, _fontptr{fontptr} {}
-    uint8_t digit(uint8_t digit, uint8_t col) { return *(_fontptr + digit*_width + col); }
-    uint8_t width() { return _width; } 
-private:
-    uint8_t _width;
-    uint8_t _height;
-    uint8_t* _fontptr;
-};
 
-// http://arduino.on.kg/matrix-font
-// fill uooer left corner, then rotate once
-
-uint8_t charMap35[] = {// 3x5
-0x1F,	0x11,	0x1F,
-0x12,	0x1F,	0x10,
-0x19,	0x15,	0x17,
-0x15,	0x15,	0x1F,
-0x07,	0x4,	0x1F,
-0x17,	0x15,	0x1D,
-0x1F,	0x15,	0x1D,
-0x01,	0x1D,	0x03,
-0x1F,	0x15,	0x1F,
-0x17,	0x15,	0x0F
-};
-
-uint8_t charMap37[] = {
-	0x3E,	0x41,	0x3E,
-	0x42,	0x7F,	0x40,
-  0x71,	0x49,	0x47,
-  0x49,	0x49,	0x7F,
-  0x0F,	0x08,	0x7F,
-  0x47,	0x45,	0x39,  
-  0x7F,	0x49,	0x79,
-	0x71,	0x09,	0x07,  
-  0x7F,	0x49,	0x7F,  
-  0x4F,	0x49,	0x7F
-};  
-
-uint8_t charMap47[] = {
-    0x3e, 0x41, 0x41, 0x3e,
-    0x00, 0x42, 0x7f, 0x40,
-    0x62, 0x51, 0x49, 0x46,
-    0x22, 0x49, 0x49, 0x36,
-    0x0f, 0x08, 0x08, 0x7f,
-    0x2f, 0x49, 0x49, 0x31, 
-    0x3e, 0x49, 0x49, 0x32,
-    0x01, 0x79, 0x05, 0x03,
-    0x36, 0x49, 0x49, 0x36,
-    0x26, 0x49, 0x49, 0x3e
-  };
-
-TMonoDigitalFont f35(3,5,charMap35);
-TMonoDigitalFont f37(3,7,charMap37);
-TMonoDigitalFont f47(4,7,charMap47);
-TMonoDigitalFont current_font = f47;
 
 
 
@@ -135,6 +91,10 @@ void wifi_connected()
 
   //strcpy(w.ssid, AP_SSID);
   //strcpy(w.pass, AP_PASS);
+
+  Serial.print F("WiFi in eeprom: ");
+  Serial.print(eeprom_wifi.ssid);
+  Serial.print(eeprom_wifi.pass);
 
   WiFi.begin(eeprom_wifi.ssid, eeprom_wifi.pass);
   while (--tries && WiFi.status() != WL_CONNECTED) 
@@ -163,10 +123,15 @@ void wifi_connected()
     Serial.println(WiFi.localIP());
 
     delay(5000);
+    Serial.print F("Set GMT");
     ntp.setGMT(eeprom_clock.gmt);
+    Serial.println(eeprom_clock.gmt);
+    Serial.print F("Set clock host");
     ntp.setHost(eeprom_clock.host);
+    Serial.println(eeprom_clock.host);
     ntp.begin();
     ntp.updateNow();
+    Serial.println F("NTP initialized");
   }
 }
 
@@ -209,6 +174,7 @@ void setup_font(uint8_t fontsize)
       case 0: current_font = f35; break;
       case 1: current_font = f37; break;
       case 2: current_font = f47; break;
+      case 3: current_font = f57; break;
       default: current_font = f47; break;
     }
 }
@@ -218,12 +184,10 @@ void build_clock(gh::Builder& b)
   bool flag = 0;
   b.Title(F("Часы"));
 
-/*
-  if(b.Slider(&eeprom_other.font).label(String("Font")).range(0, 2, 1).click())
+  if(b.Slider_(c_font,&eeprom_other.font).label(String("Font")).range(0, 3, 1).click())
   {
     setup_font(eeprom_other.font);
   }
-*/  
 
   if (b.beginRow()) 
   {
@@ -258,8 +222,8 @@ void build_clock(gh::Builder& b)
 
   if (b.beginRow()) 
   {
-    b.Label_(F("ntp_time")).valueStr("-").label("Время");
-    b.Label_(F("ntp_date")).valueStr("-").label("Дата");;
+    b.Label_(F("ntp_time")).label("Время");
+    b.Label_(F("ntp_date")).label("Дата");;
     //update_clock_labels();
     b.endRow();
   }
@@ -268,7 +232,7 @@ void build_clock(gh::Builder& b)
   {
     ntp.updateNow();
     update_clock_labels();
-    hub.update(F("ntp_date")).valueStr("new");
+    hub.update(F("ntp_date")).value("new");
   }
 
   if (b.beginRow()) 
@@ -317,9 +281,13 @@ void task_clock()
 
   if(ntp.synced()) 
   {
+    DEBUG_DIGIT(6) 
+
     h = ntp.hour();
     m = ntp.minute();
     s = ntp.second();
+
+    DEBUG_DIGIT(7) 
 
     if( (m != s_m) || (h != s_h) )
     {
@@ -339,6 +307,7 @@ void task_clock()
 
     display.lineH(sec_frame_y + s / 10, sec_frame_x, sec_frame_x+ (s % 10), GFX_FILL);
 
+    DEBUG_DIGIT(8) 
       
     if( (s & 1) != s_s )
     {
@@ -346,6 +315,8 @@ void task_clock()
       s_s = s & 1; 
     }
   }
+
+  DEBUG_DIGIT(9) 
 
   if(upd)
   {
@@ -372,12 +343,10 @@ void task_clock()
 
     display.update();
   }
-
 }
 
 void task_ntp() 
 {
-  //display.printStr(0,0,"NTP");
   ntp.setGMT(eeprom_clock.gmt);
   ntp.setHost(eeprom_clock.host);
 }
@@ -386,209 +355,79 @@ void task_led()
 {
   static int led = 1;
   digitalWrite(LED_BUILTIN, led);
-  // led = 1 - led;
+  led = 1 - led;
 }
 
-// MQTT
-// обработчик ответа
-void manual(gh::Manual m) 
+void task_weather()
 {
-    switch (m.connection) 
-    {
-        case gh::Connection::MQTT:
-            client.beginPublish(m.topic, m.text.len, 0);
-            if (m.text.pgm) 
-            {
-                uint8_t buf[m.text.len];
-                memcpy_P(buf, m.text.str, m.text.len);
-                client.write(buf, m.text.len);
-            } 
-            else 
-            {
-                client.write((uint8_t*)m.text.str, m.text.len);
+}
+
+
+
+class HubMQTT : public gh::Bridge {
+   public:
+    HubMQTT(void* hub) : gh::Bridge(hub, gh::Connection::MQTT, GyverHub::parseHook), mqtt(espClient) {}
+
+    void begin() {
+        mqtt.setServer("test.mosquitto.org", 1883);
+        mqtt.setCallback([this](char* topic, uint8_t* data, uint16_t len) {
+            uint16_t tlen = strlen(topic);
+            char topic_buf[tlen + 1];
+            memcpy(topic_buf, topic, tlen);
+            topic_buf[tlen] = 0;
+
+            char data_buf[len + 1];
+            memcpy(data_buf, data, len);
+            data_buf[len] = 0;
+
+            parse(sutil::AnyText(topic_buf, tlen), sutil::AnyText(data_buf, len));
+        });
+    }
+    void end() {
+        mqtt.disconnect();
+    }
+    void tick() {
+        if (!mqtt.connected()) reconnect();
+        mqtt.loop();
+    }
+    void send(gh::BridgeData& data) {
+        if (!mqtt.connected()) return;
+        mqtt.beginPublish(data.topic.c_str(), data.text.length(), 0);
+        mqtt.print(data.text);
+        mqtt.endPublish();
+    }
+
+   private:
+    WiFiClient espClient;
+    PubSubClient mqtt;
+
+    void reconnect() {
+        while (!mqtt.connected()) {
+            String clientId = "hub-";
+            clientId += String(random(0xffff), HEX);
+            if (mqtt.connect(clientId.c_str())) {
+                Serial.println("MQTT connected");
+                mqtt.subscribe(hub.topicDiscover().c_str());
+                mqtt.subscribe(hub.topicHub().c_str());
+            } else {
+                Serial.println("MQTT connection loop");
+                delay(1000);
+                break;
             }
-            client.endPublish();
-            break;
-
-        default:
-            break;
+        }
     }
-}
+};
 
-// MQTT
-void callback(char* topic, byte* data, unsigned int len) 
-{
-    char data_buf[len + 1];
-    memcpy(data_buf, data, len);
-    data_buf[len] = 0;
-
-    uint16_t tlen = strlen(topic);
-    char topic_buf[tlen + 1];
-    memcpy(topic_buf, topic, tlen);
-    topic_buf[tlen] = 0;
-
-    Serial.println(topic_buf);
-    hub.parse(topic_buf, data_buf, gh::Connection::MQTT);
-}
-
-// MQTT
-void reconnect() 
-{
-  static uint8_t tries = 10;
-
-  if(tries > 0)
-    Serial.println("MQTT reconnecting...");
-  else
-    return;  
-
-  while (--tries && !client.connected()) 
-  {
-      Serial.print('.');
-      String clientId = "hub-";
-      clientId += String(random(0xffff), HEX);
-      if (client.connect(clientId.c_str(), eeprom_mqtt.login, eeprom_mqtt.password)) 
-      {
-          Serial.println("MQTT connected");
-          Serial.println(hub.topicDiscover());
-          Serial.println(hub.topicHub());
-          client.subscribe(hub.topicDiscover().c_str());
-          client.subscribe(hub.topicHub().c_str());
-          tries = 10;
-      } 
-      else 
-      {
-          delay(1000);
-      }
-  }
-}
+//HubMQTT mqtt(&hub);
 
 
-void button_1_cb() 
-{
-  EncButton b = button_1;
-
-    Serial.print("callback: ");
-    switch (b.action()) {
-        case EB_PRESS:
-            Serial.println("press");
-            client.publish(hub.topicHub().c_str(),"button_1");
-            break;
-        case EB_HOLD:
-            Serial.println("hold");
-            break;
-        case EB_STEP:
-            Serial.println("step");
-            break;
-        case EB_RELEASE:
-            Serial.print("release. steps: ");
-            Serial.print(b.getSteps());
-            Serial.print(", press for: ");
-            Serial.print(b.pressFor());
-            Serial.print(", hold for: ");
-            Serial.print(b.holdFor());
-            Serial.print(", step for: ");
-            Serial.println(b.stepFor());
-            break;
-        case EB_CLICK:
-            Serial.println("click");
-            break;
-        case EB_CLICKS:
-            Serial.print("clicks ");
-            Serial.println(b.getClicks());
-            break;
-        case EB_TURN:
-            Serial.print("turn ");
-            Serial.print(b.dir());
-            Serial.print(" ");
-            Serial.print(b.fast());
-            Serial.print(" ");
-            Serial.println(b.pressing());
-            break;
-        case EB_REL_HOLD:
-            Serial.println("release hold");
-            break;
-        case EB_REL_HOLD_C:
-            Serial.print("release hold clicks ");
-            Serial.println(b.getClicks());
-            break;
-        case EB_REL_STEP:
-            Serial.println("release step");
-            break;
-        case EB_REL_STEP_C:
-            Serial.print("release step clicks ");
-            Serial.println(b.getClicks());
-            break;
-        default:
-            Serial.println();
-    }
-}
-
-void button_2_cb() 
-{
-  EncButton b = button_2;
-
-    Serial.print("callback: ");
-    switch (b.action()) {
-        case EB_PRESS:
-            Serial.println("press");
-            client.publish(hub.topicHub().c_str(),"button_2");
-            break;
-        case EB_HOLD:
-            Serial.println("hold");
-            break;
-        case EB_STEP:
-            Serial.println("step");
-            break;
-        case EB_RELEASE:
-            Serial.print("release. steps: ");
-            Serial.print(b.getSteps());
-            Serial.print(", press for: ");
-            Serial.print(b.pressFor());
-            Serial.print(", hold for: ");
-            Serial.print(b.holdFor());
-            Serial.print(", step for: ");
-            Serial.println(b.stepFor());
-            break;
-        case EB_CLICK:
-            Serial.println("click");
-            break;
-        case EB_CLICKS:
-            Serial.print("clicks ");
-            Serial.println(b.getClicks());
-            break;
-        case EB_TURN:
-            Serial.print("turn ");
-            Serial.print(b.dir());
-            Serial.print(" ");
-            Serial.print(b.fast());
-            Serial.print(" ");
-            Serial.println(b.pressing());
-            break;
-        case EB_REL_HOLD:
-            Serial.println("release hold");
-            break;
-        case EB_REL_HOLD_C:
-            Serial.print("release hold clicks ");
-            Serial.println(b.getClicks());
-            break;
-        case EB_REL_STEP:
-            Serial.println("release step");
-            break;
-        case EB_REL_STEP_C:
-            Serial.print("release step clicks ");
-            Serial.println(b.getClicks());
-            break;
-        default:
-            Serial.println();
-    }
-}
-
+#ifdef USE_BUTTONS
+#include "button.inc"
+#endif
 
 
 void setup() 
 {
-  uint8_t dot_x = 0;
-
   hub.setVersion(DEVICE_VERSION);
 
   Serial.begin(115200);
@@ -599,18 +438,20 @@ void setup()
     return;
   }
 
-  /*FDstat_t stat1 = */wifi_.read();
-  /*FDstat_t stat2 = */clock_.read();
-  /*FDstat_t stat3 = */other_.read();
-  /*FDstat_t stat4 = */narod_.read();
-  /*FDstat_t stat5 = */color_.read();
-  /*FDstat_t stat6 = */mqtt_.read();
+  /*FDstat_t stat1 =*/ wifi_.read();
+  /*FDstat_t stat2 =*/ clock_.read();
+  /*FDstat_t stat3 =*/ other_.read();
+  /*FDstat_t stat4 =*/ narod_.read();
+  /*FDstat_t stat5 =*/ color_.read();
+  /*FDstat_t stat6 =*/ mqtt_.read();
 
   setup_font(eeprom_other.font);
 
   //display.init();
   display.begin();
   display.clear();
+
+  DEBUG_DIGIT(0)
 
   /*
   display.begin(1);
@@ -622,35 +463,30 @@ void setup()
 
   pinMode(LED_BUILTIN, OUTPUT);
 
+#ifdef USE_BUTTONS
   button_1.attach(button_1_cb);
   button_2.attach(button_2_cb);
+#endif
 
-  display.dot(dot_x++, 0);
+  DEBUG_DIGIT(1)
 
   wifi_connected();
 
-  display.dot(dot_x++, 0);
-
-  // MQTT
-  //hub.mqtt.config(eeprom_mqtt.host, eeprom_mqtt.port);
-  client.setServer(eeprom_mqtt.host, eeprom_mqtt.port);
-  client.setCallback(callback);
-  client.publish("mqtt_init","1");
-
-  display.dot(dot_x++, 0);
+  DEBUG_DIGIT(2)
 
   hub.onBuild(build);                     // подключаем билдер
-  hub.onManual(manual);
+  //hub.addBridge(&mqtt);
   hub.begin();                            // запускаем систему
 
-  display.dot(dot_x++, 0);
+  DEBUG_DIGIT(3)
 
   // подключаем задачи (порядковый номер, имя функции, период в мс)
   OS.attach(0, task_clock, 200);
   OS.attach(1, task_ntp, 1000*60*60*5);
   OS.attach(2, task_led, 1000);
+  OS.attach(3, task_weather, 1000*60*10); // 10 min
 
-  display.dot(dot_x++, 0);
+  DEBUG_DIGIT(4)
 
   OS.exec(1);
 }
@@ -670,12 +506,11 @@ void loop()
 
   ntp.tick();
 
-  if (!client.connected()) reconnect();
-  if (client.connected()) client.loop();
-
+#ifdef USE_BUTTONS
   button_1.tick();
   button_2.tick();
+#endif
 }
 
-
-
+    
+   

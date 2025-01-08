@@ -5,6 +5,7 @@
 const char* c_ntp_server = "ntp_server";
 const char* c_gmt_zone = "gmt_zone";
 const char* c_brightness = "brightness";
+const char* c_font = "font";
 
 
 struct Wifi 

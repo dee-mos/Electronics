@@ -1,0 +1,82 @@
+/*
+
+// MQTT
+// обработчик ответа
+void manual(gh::Manual m) 
+{
+    switch (m.connection) 
+    {
+        case gh::Connection::MQTT:
+            client.beginPublish(m.topic, m.text.len, 0);
+            if (m.text.pgm) 
+            {
+                uint8_t buf[m.text.len];
+                memcpy_P(buf, m.text.str, m.text.len);
+                client.write(buf, m.text.len);
+            } 
+            else 
+            {
+                client.write((uint8_t*)m.text.str, m.text.len);
+            }
+            client.endPublish();
+            break;
+
+        default:
+            break;
+    }
+}
+
+// MQTT
+void callback(char* topic, byte* data, unsigned int len) 
+{
+    char data_buf[len + 1];
+    memcpy(data_buf, data, len);
+    data_buf[len] = 0;
+
+    uint16_t tlen = strlen(topic);
+    char topic_buf[tlen + 1];
+    memcpy(topic_buf, topic, tlen);
+    topic_buf[tlen] = 0;
+
+    Serial.println(topic_buf);
+    hub.parse(topic_buf, data_buf, gh::Connection::MQTT);
+}
+
+// MQTT
+void reconnect() 
+{
+  static uint8_t tries = 10;
+
+  if(tries > 0)
+    Serial.println("MQTT reconnecting...");
+  else
+    return;  
+
+  while (--tries && !client.connected()) 
+  {
+      Serial.print('.');
+      String clientId = "hub-";
+      clientId += String(random(0xffff), HEX);
+      if (client.connect(clientId.c_str(), eeprom_mqtt.login, eeprom_mqtt.password)) 
+      {
+          Serial.println("MQTT connected");
+          Serial.println(hub.topicDiscover());
+          Serial.println(hub.topicHub());
+          client.subscribe(hub.topicDiscover().c_str());
+          client.subscribe(hub.topicHub().c_str());
+          tries = 10;
+      } 
+      else 
+      {
+          delay(1000);
+      }
+  }
+}
+
+in loop:
+if (!client.connected()) reconnect();
+if (client.connected()) client.loop();
+
+
+*/
+
